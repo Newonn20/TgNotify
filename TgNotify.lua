@@ -6,11 +6,11 @@ local json = require('dkjson')
 encoding.default = 'CP1251'
 local u8 = encoding.UTF8
 
--- Конфигурация автообновления
+-- Конфигурация автообновления1
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/Newonn20/TgNotify/main/TgNotify.lua"
-local CURRENT_VERSION = "1.0.0"
+local CURRENT_VERSION = "1.0.1"
 
--- Переменные скрипта
+-- Переменные скриптав
 local enabled = true
 local TELEGRAM_TOKEN = ""
 local TELEGRAM_CHAT_ID = ""
@@ -494,3 +494,4 @@ function main()
         wait(0)
     end
 end
+
