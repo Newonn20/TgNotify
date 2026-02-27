@@ -6,21 +6,21 @@ encoding.default = 'CP1251'
 local u8 = encoding.UTF8
 
 -- Конфигурация автообновления
-local GITHUB_RAW_URL = "https://github.com/Newonn20/TgNotify/blob/main/TgNotify.lua"
-local CURRENT_VERSION = "1.0.1"
+local GITHUB_RAW_URL = "https://raw.githubusercontent.com/Newonn20/TgNotify/main/TgNotify.lua"
+local CURRENT_VERSION = "1.0.0"
 
--- Переменные скрипта
+-- Переменные скрипта (пустые, заполнятся из конфига)
 local enabled = true
-local TELEGRAM_TOKEN = "8587850988:AAFhL1CblXmHVlnb2HRfCFMLhUGaj__mbJk"
-local TELEGRAM_CHAT_ID = "8365432865"
+local TELEGRAM_TOKEN = ""
+local TELEGRAM_CHAT_ID = ""
 local triggers = { "строй", "построение", "выговор" }
 local template = "🔔 Строй обнаружен:\n{message}"
 
 -- Переменные для ImGui
 local show_window = false
-local imgui_token = TELEGRAM_TOKEN
-local imgui_chat_id = TELEGRAM_CHAT_ID
-local imgui_enabled = enabled
+local imgui_token = ""
+local imgui_chat_id = ""
+local imgui_enabled = true
 local imgui_triggers = {}
 local imgui_new_trigger = ""
 local imgui_edit_mode = false
@@ -31,6 +31,24 @@ local config_save_timer = 0
 
 -- Путь к конфиг файлу
 local config_path = getWorkingDirectory() .. "\\tgnotify_config.json"
+
+-- Функция сохранения конфига (объявляем ПЕРЕД loadConfig)
+local function saveConfig()
+    local config = {
+        token = TELEGRAM_TOKEN,
+        chat_id = TELEGRAM_CHAT_ID,
+        enabled = enabled,
+        triggers = triggers,
+        template = template
+    }
+    
+    local file = io.open(config_path, "w")
+    if file then
+        file:write(json.encode(config))
+        file:close()
+        sampAddChatMessage("[TgNotify] Конфиг сохранен", -1)
+    end
+end
 
 -- Копируем триггеры в imgui формат
 local function updateImguiTriggers()
@@ -49,37 +67,24 @@ local function loadConfig()
         
         local success, config = pcall(json.decode, content)
         if success and config then
-            TELEGRAM_TOKEN = config.token or TELEGRAM_TOKEN
-            TELEGRAM_CHAT_ID = config.chat_id or TELEGRAM_CHAT_ID
-            enabled = config.enabled ~= nil and config.enabled or enabled
-            triggers = config.triggers or triggers
-            template = config.template or template
+            TELEGRAM_TOKEN = config.token or ""
+            TELEGRAM_CHAT_ID = config.chat_id or ""
+            enabled = config.enabled ~= nil and config.enabled or true
+            triggers = config.triggers or { "строй", "построение", "выговор" }
+            template = config.template or "🔔 Строй обнаружен:\n{message}"
             
             imgui_token = TELEGRAM_TOKEN
             imgui_chat_id = TELEGRAM_CHAT_ID
             imgui_enabled = enabled
             updateImguiTriggers()
+            
+            sampAddChatMessage("[TgNotify] Конфиг загружен", -1)
         end
+    else
+        -- Создаем конфиг по умолчанию если его нет
+        saveConfig()
     end
     config_loaded = true
-end
-
--- Сохранение конфига
-local function saveConfig()
-    local config = {
-        token = TELEGRAM_TOKEN,
-        chat_id = TELEGRAM_CHAT_ID,
-        enabled = enabled,
-        triggers = triggers,
-        template = template
-    }
-    
-    local file = io.open(config_path, "w")
-    if file then
-        file:write(json.encode(config))
-        file:close()
-        sampAddChatMessage("[TgNotify] Конфиг сохранен", -1)
-    end
 end
 
 -- Функция для перезагрузки скрипта
@@ -89,73 +94,84 @@ local function reloadScript()
     dofile(getThisScriptPath())
 end
 
--- Функция для проверки обновлений
-local function checkForUpdates()
-    local url = GITHUB_RAW_URL .. "?nocache=" .. os.time()
-    
-    local thread = effil.thread(function(request_url)
-        local https = require('ssl.https')
-        local success, result = pcall(function()
-            return https.request(request_url)
-        end)
-        if success and result then
-            return result
-        end
-        return nil
-    end)
-    
-    local start_time = os.clock()
-    local remoteScript = nil
-    
-    while os.clock() - start_time < 5 do
-        local status, result = pcall(function() return thread:get() end)
-        if status and result then
-            remoteScript = result
-            break
-        end
-        wait(0)
+-- Функция для обновления
+local function performUpdate()
+    if not _G.new_script_content then
+        sampAddChatMessage("[TgNotify] Нет доступного обновления", -1)
+        return
     end
     
-    if remoteScript then
+    sampAddChatMessage("[TgNotify] 📥 Обновление до версии " .. _G.new_script_version .. "...", -1)
+    
+    local currentPath = thisScriptPath()
+    local backupPath = currentPath:gsub("%.lua$", "_backup.lua")
+    
+    -- Создаем бэкап
+    local currentFile = io.open(currentPath, "r")
+    if currentFile then
+        local backupFile = io.open(backupPath, "w")
+        if backupFile then
+            backupFile:write(currentFile:read("*all"))
+            backupFile:close()
+            sampAddChatMessage("[TgNotify] ✅ Бэкап создан", -1)
+        end
+        currentFile:close()
+    end
+    
+    -- Записываем новый скрипт
+    local file = io.open(currentPath, "w")
+    if file then
+        file:write(_G.new_script_content)
+        file:close()
+        sampAddChatMessage("[TgNotify] ✅ Скрипт обновлен! Перезагружаю...", -1)
+        wait(2000)
+        dofile(currentPath)
+    else
+        sampAddChatMessage("[TgNotify] ❌ Ошибка при сохранении", -1)
+    end
+end
+
+-- Функция для проверки обновлений (упрощенная версия)
+local function checkForUpdates()
+    local url = GITHUB_RAW_URL .. "?nocache=" .. os.time()
+    sampAddChatMessage("[TgNotify] Проверка обновлений...", -1)
+    
+    -- Пытаемся загрузить без effil
+    local success, remoteScript = pcall(function()
+        local https = require('ssl.https')
+        return https.request(url)
+    end)
+    
+    if success and remoteScript and remoteScript ~= "" then
+        -- Ищем версию
         local remoteVersion = remoteScript:match('CURRENT_VERSION%s*=%s*"([%d%.]+)"')
         
-        if remoteVersion and remoteVersion ~= CURRENT_VERSION then
-            sampAddChatMessage("[TgNotify] 🔄 Новая версия: " .. remoteVersion, -1)
-            sampAddChatMessage("[TgNotify] 📥 Обновление...", -1)
-            
-            local currentPath = thisScriptPath()
-            local backupPath = currentPath:gsub("%.lua$", "_backup.lua")
-            
-            local currentFile = io.open(currentPath, "r")
-            if currentFile then
-                local backupFile = io.open(backupPath, "w")
-                if backupFile then
-                    backupFile:write(currentFile:read("*all"))
-                    backupFile:close()
-                end
-                currentFile:close()
-            end
-            
-            local file = io.open(currentPath, "w")
-            if file then
-                file:write(remoteScript)
-                file:close()
-                sampAddChatMessage("[TgNotify] ✅ Скрипт обновлен до версии " .. remoteVersion, -1)
-                reloadScript()
+        if remoteVersion then
+            if remoteVersion ~= CURRENT_VERSION then
+                sampAddChatMessage("[TgNotify] 🔄 Найдена новая версия: " .. remoteVersion, -1)
+                sampAddChatMessage("[TgNotify] Хотите обновиться? Напишите /tgupdate для обновления", -1)
+                
+                -- Сохраняем скрипт для возможного обновления
+                _G.new_script_content = remoteScript
+                _G.new_script_version = remoteVersion
             else
-                sampAddChatMessage("[TgNotify] ❌ Ошибка при обновлении", -1)
+                sampAddChatMessage("[TgNotify] ✅ Версия актуальна", -1)
             end
         else
-            sampAddChatMessage("[TgNotify] ✅ Версия актуальна: " .. CURRENT_VERSION, -1)
+            sampAddChatMessage("[TgNotify] ❌ Не удалось определить версию на GitHub", -1)
         end
     else
-        sampAddChatMessage("[TgNotify] ❌ Не удалось проверить обновления", -1)
+        sampAddChatMessage("[TgNotify] ❌ Ошибка загрузки: " .. tostring(remoteScript), -1)
     end
 end
 
 -- Отправка уведомления в Telegram
 local function sendTelegramNotification(msg)
     if not msg or msg == "" or not enabled then return end
+    if TELEGRAM_TOKEN == "" or TELEGRAM_CHAT_ID == "" then 
+        sampAddChatMessage("[TgNotify] ❌ Не указан токен или Chat ID", -1)
+        return 
+    end
     
     msg = msg:gsub('{%x%x%x%x%x%x}', '')
     msg = u8:encode(msg, 'CP1251')
@@ -230,6 +246,9 @@ function sampev.onSendCommand(cmd)
     if cmd == "/tgnotify" then
         show_window = not show_window
         return false
+    elseif cmd == "/tgupdate" then
+        performUpdate()
+        return false
     end
 end
 
@@ -239,7 +258,7 @@ function imgui.OnDrawFrame()
     
     local needs_save = false
     
-    imgui.SetNextWindowSize(500, 400, imgui.Cond.FirstUseEver)
+    imgui.SetNextWindowSize(550, 450, imgui.Cond.FirstUseEver)
     local visible, open = imgui.Begin("TgNotify Configuration", true, imgui.WindowFlags.NoResize)
     
     if visible then
@@ -248,7 +267,7 @@ function imgui.OnDrawFrame()
             if imgui.BeginTabItem("Telegram") then
                 imgui.Dummy(0, 5)
                 
-                imgui.PushItemWidth(300)
+                imgui.PushItemWidth(350)
                 local changed, new_token = imgui.InputText("Bot Token", imgui_token, 200)
                 if changed then 
                     imgui_token = new_token
@@ -275,8 +294,12 @@ function imgui.OnDrawFrame()
                 
                 imgui.Dummy(0, 5)
                 if imgui.Button("Тест уведомления", 150, 25) then
-                    sendTelegramNotification("🔔 Тестовое уведомление от TgNotify")
-                    sampAddChatMessage("[TgNotify] Тестовое уведомление отправлено", -1)
+                    if TELEGRAM_TOKEN == "" or TELEGRAM_CHAT_ID == "" then
+                        sampAddChatMessage("[TgNotify] ❌ Сначала введите токен и Chat ID", -1)
+                    else
+                        sendTelegramNotification("🔔 Тестовое уведомление от TgNotify")
+                        sampAddChatMessage("[TgNotify] Тестовое уведомление отправлено", -1)
+                    end
                 end
                 
                 imgui.EndTabItem()
@@ -318,7 +341,7 @@ function imgui.OnDrawFrame()
                         end
                     else
                         imgui.Text("• " .. word)
-                        imgui.SameLine(250)
+                        imgui.SameLine(280)
                         
                         if imgui.Button("✏️", 25, 25) then
                             imgui_edit_mode = true
@@ -386,13 +409,28 @@ function imgui.OnDrawFrame()
                 imgui.Dummy(0, 5)
                 imgui.Text("Команды:")
                 imgui.Text("  /tgnotify - открыть меню")
+                imgui.Text("  /tgupdate - обновить скрипт")
                 imgui.Dummy(0, 10)
                 imgui.Text("Статус: " .. (enabled and "✅ Включен" or "❌ Выключен"))
                 imgui.Text("Триггеров: " .. #triggers)
                 
+                if TELEGRAM_TOKEN == "" or TELEGRAM_CHAT_ID == "" then
+                    imgui.Dummy(0, 5)
+                    imgui.TextColored(1, 0.5, 0, 1, "⚠️ Введите токен и Chat ID во вкладке Telegram")
+                end
+                
                 imgui.Dummy(0, 10)
                 if imgui.Button("Проверить обновления", 200, 25) then
                     checkForUpdates()
+                end
+                
+                if _G.new_script_content then
+                    imgui.Dummy(0, 5)
+                    imgui.TextColored(0, 1, 0, 1, "🟢 Доступно обновление!")
+                    imgui.TextColored(0, 1, 0, 1, "Версия: " .. _G.new_script_version)
+                    if imgui.Button("Установить обновление", 200, 25) then
+                        performUpdate()
+                    end
                 end
                 
                 imgui.EndTabItem()
@@ -446,4 +484,3 @@ function main()
         wait(0)
     end
 end
-
