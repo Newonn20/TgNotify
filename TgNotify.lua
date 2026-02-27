@@ -1,205 +1,206 @@
 script_name("TgNotify")
-script_author("fix")
+script_author("senior edition")
 
 local sampev = require 'lib.samp.events'
 local imgui = require 'imgui'
+local inicfg = require 'inicfg'
+local effil = require 'effil'
 local encoding = require 'encoding'
-local json = require 'json'
-local https = require 'ssl.https'
-
 encoding.default = 'CP1251'
 local u8 = encoding.UTF8
 
--- ================= CONFIG =================
-local CONFIG_PATH = getWorkingDirectory() .. "\\tgnotify.json"
-local UPDATE_URL = "https://raw.githubusercontent.com/Newonn20/TgNotify/main/TgNotify.lua"
-local VERSION = "2.1"
+local dlstatus = require('moonloader').download_status
 
-local cfg = {
-    enabled = true,
-    token = "",
-    chat_id = "",
-    triggers = {"строй", "построение"},
-    template = "🔔 {message}"
-}
+local update_url = "https://raw.githubusercontent.com/Newonn20/TgNotify/main/TgNotify.lua"
+local script_path = thisScript().path
 
--- ================= IMGUI =================
-imgui.Process = false
-local show = imgui.ImBool(false)
+-- CONFIG
+local config_dir = "TgNotify"
+local config = inicfg.load({
+    main = {
+        enabled = true,
+        token = "",
+        chat_id = "",
+        template = "?? Строй обнаружен:\n{message}"
+    },
+    triggers = {}
+}, config_dir)
 
-local buf_token = imgui.ImBuffer(256)
-local buf_chat = imgui.ImBuffer(128)
-local new_trigger = imgui.ImBuffer(64)
-local enabled_buf = imgui.ImBool(false)
+inicfg.save(config, config_dir)
 
--- ================= CONFIG =================
-function loadConfig()
-    local f = io.open(CONFIG_PATH, "r")
-    if f then
-        local ok, data = pcall(json.decode, f:read("*a"))
-        f:close()
-        if ok and data then cfg = data end
-    else
-        saveConfig()
-    end
+-- IMGUI
+local main_window_state = imgui.ImBool(false)
+local new_trigger = imgui.ImBuffer(128)
+local trigger_mode = imgui.ImInt(0) -- 0 = exact, 1 = contains
 
-    buf_token.v = cfg.token
-    buf_chat.v = cfg.chat_id
-    enabled_buf.v = cfg.enabled
-end
-
-function saveConfig()
-    local f = io.open(CONFIG_PATH, "w")
-    if f then
-        f:write(json.encode(cfg))
-        f:close()
-        sampAddChatMessage("[TgNotify] Config saved", -1)
-    end
-end
-
--- ================= TELEGRAM =================
-function sendTG(text)
-    if not cfg.enabled then return end
-    if cfg.token == "" or cfg.chat_id == "" then return end
-
-    text = text:gsub(" ", "%%20"):gsub("\n", "%%0A")
-
-    local url = "https://api.telegram.org/bot"..cfg.token..
-                "/sendMessage?chat_id="..cfg.chat_id.."&text="..text
-
-    lua_thread.create(function()
-        https.request(url)
+-- THREAD
+local function requestRunner()
+    return effil.thread(function(u)
+        local https = require 'ssl.https'
+        local ok, result = pcall(https.request, u)
+        return {ok, result}
     end)
 end
 
--- ================= TRIGGERS =================
-function contains(text)
-    text = text:lower()
-    for _, w in ipairs(cfg.triggers) do
-        if text:find(w:lower()) then
-            return true
+-- TELEGRAM
+local function sendTelegram(msg)
+    if not config.main.enabled then return end
+    if config.main.token == "" or config.main.chat_id == "" then return end
+
+    msg = msg:gsub('{%x%x%x%x%x%x}', '')
+    msg = u8:encode(msg, 'CP1251')
+    msg = msg:gsub(' ', '%%20'):gsub('\n', '%%0A'):gsub('&', '%%26'):gsub('=', '%%3D')
+
+    local url = 'https://api.telegram.org/bot' .. config.main.token ..
+        '/sendMessage?chat_id=' .. config.main.chat_id .. '&text=' .. msg
+
+    local t = requestRunner()(url)
+    pcall(function() t:detach() end)
+end
+
+-- LOWER
+local function rusLower(text)
+    return text:lower()
+end
+
+-- TRIGGER CHECK
+local function checkTrigger(text)
+    if not config.main.enabled then return false end
+
+    local clean = text:gsub('{%x%x%x%x%x%x}', '')
+    local lowerText = rusLower(clean)
+
+    for k, v in pairs(config.triggers) do
+        if v ~= "" then
+            local mode = k:match("^mode_(.+)")
+            if mode then
+                local word = config.triggers[mode]
+                if word then
+                    if v == "exact" then
+                        local padded = " " .. lowerText .. " "
+                        if padded:find(" " .. word .. " ") then
+                            return true
+                        end
+                    else
+                        if lowerText:find(word) then
+                            return true
+                        end
+                    end
+                end
+            end
         end
     end
+
     return false
 end
 
--- ================= UPDATE =================
-local updateData = nil
-
-function checkUpdate()
-    sampAddChatMessage("[TgNotify] Проверка обновления...", -1)
-
-    local body, code = https.request(UPDATE_URL)
-
-    if not body or code ~= 200 then
-        sampAddChatMessage("[TgNotify] Ошибка загрузки", -1)
-        return
-    end
-
-    local ver = body:match('VERSION%s*=%s*"([^"]+)"')
-
-    if ver and ver ~= VERSION then
-        sampAddChatMessage("[TgNotify] Новая версия: "..ver.." (/tgupdate)", -1)
-        updateData = body
-    else
-        sampAddChatMessage("[TgNotify] У тебя актуальная версия", -1)
+-- SAMP EVENTS
+function sampev.onServerMessage(color, text)
+    if checkTrigger(text) then
+        local msg = config.main.template:gsub("{message}", text)
+        sendTelegram(msg)
     end
 end
 
-function doUpdate()
-    if not updateData then
-        sampAddChatMessage("[TgNotify] Нет обновления", -1)
-        return
-    end
-
-    local path = thisScript().path
-
-    local f = io.open(path, "w")
-    if not f then
-        sampAddChatMessage("[TgNotify] Ошибка записи файла", -1)
-        return
-    end
-
-    f:write(updateData)
-    f:close()
-
-    sampAddChatMessage("[TgNotify] Обновлено! Перезапуск...", -1)
-    wait(1000)
-
-    thisScript():reload()
-end
-
--- ================= EVENTS =================
-function sampev.onServerMessage(_, text)
-    if contains(text) then
-        sendTG(cfg.template:gsub("{message}", text))
-    end
-end
-
+-- COMMAND
 function sampev.onSendCommand(cmd)
     if cmd == "/tgnotify" then
-        show.v = not show.v
-        imgui.Process = show.v
-        return false
-    elseif cmd == "/tgupdate" then
-        doUpdate()
+        main_window_state.v = not main_window_state.v
         return false
     end
 end
 
--- ================= UI =================
-function imgui.OnFrame()
-    if not show.v then return end
+-- AUTO UPDATE
+local function updateScript()
+    local tmp = script_path .. ".tmp"
 
-    imgui.Begin("TgNotify", show)
+    downloadUrlToFile(update_url, tmp, function(id, status)
+        if status == dlstatus.STATUS_ENDDOWNLOADDATA then
+            os.remove(script_path)
+            os.rename(tmp, script_path)
+            sampAddChatMessage("[TgNotify] Обновлено! Перезагрузка...", -1)
+            thisScript():reload()
+        end
+    end)
+end
 
-    if imgui.Button("Check update") then checkUpdate() end
+-- CHECK UPDATE
+function onScriptLoad()
+    updateScript()
+end
+
+-- MAIN
+function main()
+    repeat wait(0) until isSampAvailable()
+    sampAddChatMessage("[TgNotify] /tgnotify - меню", -1)
+
+    imgui.Process = true
+
+    while true do
+        wait(0)
+    end
+end
+
+-- IMGUI DRAW
+function imgui.OnDrawFrame()
+    if not main_window_state.v then return end
+
+    imgui.Begin("TgNotify", main_window_state)
+
+    -- ENABLE
+    if imgui.Checkbox(u8"Включено", imgui.ImBool(config.main.enabled)) then
+        config.main.enabled = not config.main.enabled
+        inicfg.save(config, config_dir)
+    end
 
     imgui.Separator()
 
-    if imgui.Checkbox("Enabled", enabled_buf) then
-        cfg.enabled = enabled_buf.v
+    -- TELEGRAM
+    imgui.Text(u8"Telegram")
+    local token_buf = imgui.ImBuffer(config.main.token, 256)
+    if imgui.InputText("Token", token_buf) then
+        config.main.token = token_buf.v
+        inicfg.save(config, config_dir)
     end
 
-    imgui.InputText("Token", buf_token)
-    imgui.InputText("ChatID", buf_chat)
+    local chat_buf = imgui.ImBuffer(tostring(config.main.chat_id), 64)
+    if imgui.InputText("Chat ID", chat_buf) then
+        config.main.chat_id = chat_buf.v
+        inicfg.save(config, config_dir)
+    end
 
-    if imgui.Button("Save") then
-        cfg.token = buf_token.v
-        cfg.chat_id = buf_chat.v
-        saveConfig()
+    if imgui.Button(u8"Тест") then
+        sendTelegram("Test message")
     end
 
     imgui.Separator()
-    imgui.Text("Triggers:")
 
-    for i, v in ipairs(cfg.triggers) do
+    -- TRIGGERS
+    imgui.Text(u8"Триггеры")
+
+    for k, v in pairs(config.triggers) do
         imgui.Text(v)
         imgui.SameLine()
-        if imgui.Button("X##"..i) then
-            table.remove(cfg.triggers, i)
+        if imgui.SmallButton("Удалить##"..k) then
+            config.triggers[k] = nil
+            config.triggers["mode_"..k] = nil
+            inicfg.save(config, config_dir)
         end
     end
 
-    imgui.InputText("New trigger", new_trigger)
-    if imgui.Button("Add") then
-        if new_trigger.v ~= "" then
-            table.insert(cfg.triggers, new_trigger.v)
-            new_trigger.v = ""
-        end
+    imgui.InputText("##newtrigger", new_trigger)
+
+    imgui.RadioButton(u8"Точное", trigger_mode, 0)
+    imgui.SameLine()
+    imgui.RadioButton(u8"Содержит", trigger_mode, 1)
+
+    if imgui.Button(u8"Добавить") then
+        local id = tostring(os.time())
+        config.triggers[id] = new_trigger.v:lower()
+        config.triggers["mode_"..id] = (trigger_mode.v == 0) and "exact" or "contains"
+        new_trigger.v = ""
+        inicfg.save(config, config_dir)
     end
 
     imgui.End()
-end
-
--- ================= MAIN =================
-function main()
-    repeat wait(0) until isSampAvailable()
-
-    loadConfig()
-    checkUpdate()
-
-    sampAddChatMessage("[TgNotify] Loaded. Use /tgnotify", -1)
-
-    while true do wait(0) end
 end
