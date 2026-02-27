@@ -219,16 +219,15 @@ function main()
 end
 
 -- DRAW
+-- DRAW
 function imgui.OnDrawFrame()
     if not window.v then return end
 
     imgui.SetNextWindowSize(imgui.ImVec2(500, 400), imgui.Cond.FirstUseEver)
     imgui.Begin("TgNotify", window)
 
-    -- ENABLE
-    local changed, value = imgui.Checkbox("Enable notifications", enabled.v)
-    if changed then
-        enabled.v = value
+    -- ENABLE - ИСПРАВЛЕНО
+    if imgui.Checkbox("Enable notifications", enabled) then
         config.main.enabled = enabled.v
         saveConfig()
     end
@@ -305,9 +304,13 @@ function imgui.OnDrawFrame()
         -- Просто обновляем буфер
     end
 
-    imgui.RadioButton("Exact word match", trigger_mode, 0)
+    if imgui.RadioButton("Exact word match", trigger_mode, 0) then
+        -- Значение обновляется автоматически
+    end
     imgui.SameLine()
-    imgui.RadioButton("Contains text", trigger_mode, 1)
+    if imgui.RadioButton("Contains text", trigger_mode, 1) then
+        -- Значение обновляется автоматически
+    end
 
     if imgui.Button("Add Trigger", imgui.ImVec2(120, 0)) then
         local trigger_text = new_trigger_buf.v:gsub("^%s+", ""):gsub("%s+$", "") -- Trim
@@ -334,7 +337,7 @@ function imgui.OnDrawFrame()
 
     imgui.Separator()
     imgui.Text("Status: " .. (config.main.enabled and "Enabled" or "Disabled"))
-    imgui.Text("Total triggers: " .. #config.triggers / 2) -- Делим на 2 т.к. каждый триггер имеет mode
+    imgui.Text("Total triggers: " .. math.floor(#config.triggers / 2)) -- Делим на 2 т.к. каждый триггер имеет mode
 
     imgui.End()
 end
