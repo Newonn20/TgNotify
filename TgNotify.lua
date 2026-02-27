@@ -83,33 +83,46 @@ end
 local updateData = nil
 
 function checkUpdate()
-    sampAddChatMessage("[TgNotify] Checking update...", -1)
+    sampAddChatMessage("[TgNotify] Проверка обновления...", -1)
 
-    local body = https.request(UPDATE_URL)
-    if not body then return end
+    local body, code = https.request(UPDATE_URL)
+
+    if not body or code ~= 200 then
+        sampAddChatMessage("[TgNotify] Ошибка загрузки", -1)
+        return
+    end
 
     local ver = body:match('VERSION%s*=%s*"([^"]+)"')
 
     if ver and ver ~= VERSION then
-        sampAddChatMessage("[TgNotify] New version: "..ver.." (/tgupdate)", -1)
+        sampAddChatMessage("[TgNotify] Новая версия: "..ver.." (/tgupdate)", -1)
         updateData = body
     else
-        sampAddChatMessage("[TgNotify] Latest version", -1)
+        sampAddChatMessage("[TgNotify] У тебя актуальная версия", -1)
     end
 end
 
 function doUpdate()
-    if not updateData then return end
-
-    local path = getThisScriptPath()
-    local f = io.open(path, "w")
-    if f then
-        f:write(updateData)
-        f:close()
-        sampAddChatMessage("[TgNotify] Updated! Reloading...", -1)
-        wait(1000)
-        dofile(path)
+    if not updateData then
+        sampAddChatMessage("[TgNotify] Нет обновления", -1)
+        return
     end
+
+    local path = thisScript().path
+
+    local f = io.open(path, "w")
+    if not f then
+        sampAddChatMessage("[TgNotify] Ошибка записи файла", -1)
+        return
+    end
+
+    f:write(updateData)
+    f:close()
+
+    sampAddChatMessage("[TgNotify] Обновлено! Перезапуск...", -1)
+    wait(1000)
+
+    thisScript():reload()
 end
 
 -- ================= EVENTS =================
@@ -140,9 +153,16 @@ function imgui.OnFrame()
 
     imgui.Separator()
 
-    if imgui.Checkbox("Enabled", imgui.ImBool(cfg.enabled)) then
-        cfg.enabled = not cfg.enabled
-    end
+	local enabled_buf = imgui.ImBool(cfg.enabled)
+
+	function imgui.OnFrame()
+		if not show.v then return end
+
+		imgui.Begin("TgNotify", show)
+
+		if imgui.Checkbox("Enabled", enabled_buf) then
+			cfg.enabled = enabled_buf.v
+		end
 
     imgui.InputText("Token", buf_token)
     imgui.InputText("ChatID", buf_chat)
