@@ -13,7 +13,7 @@ local u8 = encoding.UTF8
 -- ================= CONFIG =================
 local CONFIG_PATH = getWorkingDirectory() .. "\\tgnotify.json"
 local UPDATE_URL = "https://raw.githubusercontent.com/Newonn20/TgNotify/main/TgNotify.lua"
-local VERSION = "2.0"
+local VERSION = "2.1"
 
 local cfg = {
     enabled = true,
@@ -30,6 +30,7 @@ local show = imgui.ImBool(false)
 local buf_token = imgui.ImBuffer(256)
 local buf_chat = imgui.ImBuffer(128)
 local new_trigger = imgui.ImBuffer(64)
+local enabled_buf = imgui.ImBool(false)
 
 -- ================= CONFIG =================
 function loadConfig()
@@ -38,10 +39,13 @@ function loadConfig()
         local ok, data = pcall(json.decode, f:read("*a"))
         f:close()
         if ok and data then cfg = data end
-    else saveConfig() end
+    else
+        saveConfig()
+    end
 
     buf_token.v = cfg.token
     buf_chat.v = cfg.chat_id
+    enabled_buf.v = cfg.enabled
 end
 
 function saveConfig()
@@ -58,7 +62,7 @@ function sendTG(text)
     if not cfg.enabled then return end
     if cfg.token == "" or cfg.chat_id == "" then return end
 
-    text = text:gsub(" ", "%%20"):gsub("\n","%%0A")
+    text = text:gsub(" ", "%%20"):gsub("\n", "%%0A")
 
     local url = "https://api.telegram.org/bot"..cfg.token..
                 "/sendMessage?chat_id="..cfg.chat_id.."&text="..text
@@ -153,16 +157,9 @@ function imgui.OnFrame()
 
     imgui.Separator()
 
-	local enabled_buf = imgui.ImBool(cfg.enabled)
-
-	function imgui.OnFrame()
-		if not show.v then return end
-
-		imgui.Begin("TgNotify", show)
-
-		if imgui.Checkbox("Enabled", enabled_buf) then
-			cfg.enabled = enabled_buf.v
-		end
+    if imgui.Checkbox("Enabled", enabled_buf) then
+        cfg.enabled = enabled_buf.v
+    end
 
     imgui.InputText("Token", buf_token)
     imgui.InputText("ChatID", buf_chat)
@@ -184,10 +181,12 @@ function imgui.OnFrame()
         end
     end
 
-    imgui.InputText("New", new_trigger)
+    imgui.InputText("New trigger", new_trigger)
     if imgui.Button("Add") then
-        table.insert(cfg.triggers, new_trigger.v)
-        new_trigger.v = ""
+        if new_trigger.v ~= "" then
+            table.insert(cfg.triggers, new_trigger.v)
+            new_trigger.v = ""
+        end
     end
 
     imgui.End()
@@ -200,7 +199,7 @@ function main()
     loadConfig()
     checkUpdate()
 
-    sampAddChatMessage("[TgNotify] Loaded. /tgnotify", -1)
+    sampAddChatMessage("[TgNotify] Loaded. Use /tgnotify", -1)
 
     while true do wait(0) end
 end
