@@ -7,7 +7,7 @@ local u8 = encoding.UTF8
 
 -- Конфигурация автообновления
 local GITHUB_RAW_URL = "https://github.com/Newonn20/TgNotify/blob/main/TgNotify.lua"
-local CURRENT_VERSION = "1.0.0"
+local CURRENT_VERSION = "1.0.1"
 
 -- Переменные скрипта
 local enabled = true
@@ -446,3 +446,4 @@ function main()
         wait(0)
     end
 end
+
