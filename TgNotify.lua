@@ -2,7 +2,7 @@ local sampev = require 'lib.samp.events'
 local effil = require("effil")
 local encoding = require("encoding")
 local imgui = require('imgui')
-local json = require('dkjson') -- Добавляем модуль JSON
+local json = require('dkjson')
 encoding.default = 'CP1251'
 local u8 = encoding.UTF8
 
@@ -10,7 +10,7 @@ local u8 = encoding.UTF8
 local GITHUB_RAW_URL = "https://raw.githubusercontent.com/Newonn20/TgNotify/main/TgNotify.lua"
 local CURRENT_VERSION = "1.0.0"
 
--- Переменные скрипта (пустые, заполнятся из конфига)
+-- Переменные скрипта
 local enabled = true
 local TELEGRAM_TOKEN = ""
 local TELEGRAM_CHAT_ID = ""
@@ -45,7 +45,7 @@ local function saveConfig()
     
     local file = io.open(config_path, "w")
     if file then
-        file:write(json.encode(config, { indent = true })) -- Красивое форматирование
+        file:write(json.encode(config, { indent = true }))
         file:close()
         sampAddChatMessage("[TgNotify] Конфиг сохранен", -1)
     end
@@ -59,35 +59,46 @@ local function updateImguiTriggers()
     end
 end
 
--- Загрузка конфига
+-- Загрузка конфига (исправленная версия)
 local function loadConfig()
     local file = io.open(config_path, "r")
     if file then
         local content = file:read("*all")
         file:close()
         
-        local config, _, err = json.decode(content)
-        if config then
-            TELEGRAM_TOKEN = config.token or ""
-            TELEGRAM_CHAT_ID = config.chat_id or ""
-            enabled = config.enabled ~= nil and config.enabled or true
-            triggers = config.triggers or { "строй", "построение", "выговор" }
-            template = config.template or "🔔 Строй обнаружен:\n{message}"
-            
-            imgui_token = TELEGRAM_TOKEN
-            imgui_chat_id = TELEGRAM_CHAT_ID
-            imgui_enabled = enabled
-            updateImguiTriggers()
-            
-            sampAddChatMessage("[TgNotify] Конфиг загружен", -1)
+        -- Проверяем, что файл не пустой
+        if content and content ~= "" then
+            local config, _, err = json.decode(content)
+            if config then
+                TELEGRAM_TOKEN = config.token or ""
+                TELEGRAM_CHAT_ID = config.chat_id or ""
+                enabled = config.enabled ~= nil and config.enabled or true
+                triggers = config.triggers or { "строй", "построение", "выговор" }
+                template = config.template or "🔔 Строй обнаружен:\n{message}"
+                
+                sampAddChatMessage("[TgNotify] Конфиг загружен", -1)
+            else
+                -- Если файл поврежден, создаем новый
+                sampAddChatMessage("[TgNotify] Конфиг поврежден, создаем новый", -1)
+                saveConfig()
+            end
         else
-            sampAddChatMessage("[TgNotify] Ошибка загрузки конфига: " .. tostring(err), -1)
+            -- Если файл пустой, создаем новый
+            sampAddChatMessage("[TgNotify] Конфиг пустой, создаем новый", -1)
+            saveConfig()
         end
     else
-        -- Создаем конфиг по умолчанию если его нет
+        -- Если файла нет, создаем новый
+        sampAddChatMessage("[TgNotify] Конфиг не найден, создаем новый", -1)
         saveConfig()
-        sampAddChatMessage("[TgNotify] Создан конфиг по умолчанию", -1)
     end
+    
+    -- Обновляем переменные ImGui после загрузки
+    imgui_token = TELEGRAM_TOKEN
+    imgui_chat_id = TELEGRAM_CHAT_ID
+    imgui_enabled = enabled
+    updateImguiTriggers()
+    
     config_loaded = true
 end
 
@@ -140,14 +151,12 @@ local function checkForUpdates()
     local url = GITHUB_RAW_URL .. "?nocache=" .. os.time()
     sampAddChatMessage("[TgNotify] Проверка обновлений...", -1)
     
-    -- Пытаемся загрузить
     local success, remoteScript = pcall(function()
         local https = require('ssl.https')
         return https.request(url)
     end)
     
     if success and remoteScript and remoteScript ~= "" then
-        -- Ищем версию
         local remoteVersion = remoteScript:match('CURRENT_VERSION%s*=%s*"([%d%.]+)"')
         
         if remoteVersion then
@@ -155,7 +164,6 @@ local function checkForUpdates()
                 sampAddChatMessage("[TgNotify] 🔄 Найдена новая версия: " .. remoteVersion, -1)
                 sampAddChatMessage("[TgNotify] Хотите обновиться? Напишите /tgupdate для обновления", -1)
                 
-                -- Сохраняем скрипт для возможного обновления
                 _G.new_script_content = remoteScript
                 _G.new_script_version = remoteVersion
             else
@@ -173,7 +181,7 @@ end
 local function sendTelegramNotification(msg)
     if not msg or msg == "" or not enabled then return end
     if TELEGRAM_TOKEN == "" or TELEGRAM_CHAT_ID == "" then 
-        return -- Просто игнорируем, без спама в чат
+        return
     end
     
     msg = msg:gsub('{%x%x%x%x%x%x}', '')
@@ -478,7 +486,6 @@ function main()
     repeat wait(0) until isSampAvailable()
     
     loadConfig()
-    updateImguiTriggers()
     checkForUpdates()
     
     sampAddChatMessage("[TgNotify] /tgnotify - Открыть меню | v" .. CURRENT_VERSION, -1)
