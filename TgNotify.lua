@@ -5,34 +5,34 @@ local imgui = require('imgui')
 encoding.default = 'CP1251'
 local u8 = encoding.UTF8
 
--- Конфигурация автообновления
-local GITHUB_RAW_URL = "https://raw.githubusercontent.com/ваш_username/ваш_repo/main/TgNotify.lua"
+-- РљРѕРЅС„РёРіСѓСЂР°С†РёСЏ Р°РІС‚РѕРѕР±РЅРѕРІР»РµРЅРёСЏ
+local GITHUB_RAW_URL = "https://github.com/Newonn20/TgNotify/blob/main/TgNotify.lua"
 local CURRENT_VERSION = "1.0.0"
 
--- Переменные скрипта
+-- РџРµСЂРµРјРµРЅРЅС‹Рµ СЃРєСЂРёРїС‚Р°
 local enabled = true
 local TELEGRAM_TOKEN = "8587850988:AAFhL1CblXmHVlnb2HRfCFMLhUGaj__mbJk"
 local TELEGRAM_CHAT_ID = "8365432865"
-local triggers = { "строй", "построение", "выговор" }
-local template = "?? Строй обнаружен:\n{message}"
+local triggers = { "СЃС‚СЂРѕР№", "РїРѕСЃС‚СЂРѕРµРЅРёРµ", "РІС‹РіРѕРІРѕСЂ" }
+local template = "рџ”” РЎС‚СЂРѕР№ РѕР±РЅР°СЂСѓР¶РµРЅ:\n{message}"
 
--- Переменные для ImGui
+-- РџРµСЂРµРјРµРЅРЅС‹Рµ РґР»СЏ ImGui
 local show_window = false
 local imgui_token = TELEGRAM_TOKEN
 local imgui_chat_id = TELEGRAM_CHAT_ID
 local imgui_enabled = enabled
-local imgui_triggers = {} -- для редактирования отдельных слов
-local imgui_new_trigger = "" -- для добавления нового слова
+local imgui_triggers = {}
+local imgui_new_trigger = ""
 local imgui_edit_mode = false
 local imgui_edit_index = -1
 local imgui_edit_value = ""
 local config_loaded = false
 local config_save_timer = 0
 
--- Путь к конфиг файлу
+-- РџСѓС‚СЊ Рє РєРѕРЅС„РёРі С„Р°Р№Р»Сѓ
 local config_path = getWorkingDirectory() .. "\\tgnotify_config.json"
 
--- Копируем триггеры в imgui формат
+-- РљРѕРїРёСЂСѓРµРј С‚СЂРёРіРіРµСЂС‹ РІ imgui С„РѕСЂРјР°С‚
 local function updateImguiTriggers()
     imgui_triggers = {}
     for i, word in ipairs(triggers) do
@@ -40,7 +40,7 @@ local function updateImguiTriggers()
     end
 end
 
--- Загрузка конфига
+-- Р—Р°РіСЂСѓР·РєР° РєРѕРЅС„РёРіР°
 local function loadConfig()
     local file = io.open(config_path, "r")
     if file then
@@ -55,7 +55,6 @@ local function loadConfig()
             triggers = config.triggers or triggers
             template = config.template or template
             
-            -- Обновляем переменные ImGui
             imgui_token = TELEGRAM_TOKEN
             imgui_chat_id = TELEGRAM_CHAT_ID
             imgui_enabled = enabled
@@ -65,7 +64,7 @@ local function loadConfig()
     config_loaded = true
 end
 
--- Сохранение конфига
+-- РЎРѕС…СЂР°РЅРµРЅРёРµ РєРѕРЅС„РёРіР°
 local function saveConfig()
     local config = {
         token = TELEGRAM_TOKEN,
@@ -79,38 +78,21 @@ local function saveConfig()
     if file then
         file:write(json.encode(config))
         file:close()
-        sampAddChatMessage("[TgNotify] Конфиг сохранен", -1)
+        sampAddChatMessage("[TgNotify] РљРѕРЅС„РёРі СЃРѕС…СЂР°РЅРµРЅ", -1)
     end
 end
 
--- Функция для HTTP запросов через effil
-local function httpRequest(url)
-    local thread = effil.thread(function(request_url)
-        local https = require('ssl.https')
-        local success, result = pcall(function()
-            return https.request(request_url)
-        end)
-        if success and result then
-            return result
-        end
-        return nil
-    end)
-    
-    return thread:get(url)
-end
-
--- Функция для перезагрузки скрипта
+-- Р¤СѓРЅРєС†РёСЏ РґР»СЏ РїРµСЂРµР·Р°РіСЂСѓР·РєРё СЃРєСЂРёРїС‚Р°
 local function reloadScript()
-    sampAddChatMessage("[TgNotify] ?? Перезагрузка...", -1)
+    sampAddChatMessage("[TgNotify] рџ”„ РџРµСЂРµР·Р°РіСЂСѓР·РєР°...", -1)
     wait(1000)
     dofile(getThisScriptPath())
 end
 
--- Функция для проверки обновлений
+-- Р¤СѓРЅРєС†РёСЏ РґР»СЏ РїСЂРѕРІРµСЂРєРё РѕР±РЅРѕРІР»РµРЅРёР№
 local function checkForUpdates()
     local url = GITHUB_RAW_URL .. "?nocache=" .. os.time()
     
-    -- Запускаем в отдельном потоке чтобы не блокировать игру
     local thread = effil.thread(function(request_url)
         local https = require('ssl.https')
         local success, result = pcall(function()
@@ -122,11 +104,10 @@ local function checkForUpdates()
         return nil
     end)
     
-    -- Ждем результат с таймаутом
     local start_time = os.clock()
     local remoteScript = nil
     
-    while os.clock() - start_time < 5 do -- 5 секунд таймаут
+    while os.clock() - start_time < 5 do
         local status, result = pcall(function() return thread:get() end)
         if status and result then
             remoteScript = result
@@ -136,18 +117,15 @@ local function checkForUpdates()
     end
     
     if remoteScript then
-        -- Ищем версию в удаленном скрипте
         local remoteVersion = remoteScript:match('CURRENT_VERSION%s*=%s*"([%d%.]+)"')
         
         if remoteVersion and remoteVersion ~= CURRENT_VERSION then
-            sampAddChatMessage("[TgNotify] ?? Новая версия: " .. remoteVersion, -1)
-            sampAddChatMessage("[TgNotify] ?? Обновление...", -1)
+            sampAddChatMessage("[TgNotify] рџ”„ РќРѕРІР°СЏ РІРµСЂСЃРёСЏ: " .. remoteVersion, -1)
+            sampAddChatMessage("[TgNotify] рџ“Ґ РћР±РЅРѕРІР»РµРЅРёРµ...", -1)
             
-            -- Сохраняем текущий скрипт как бэкап
             local currentPath = thisScriptPath()
             local backupPath = currentPath:gsub("%.lua$", "_backup.lua")
             
-            -- Создаем бэкап
             local currentFile = io.open(currentPath, "r")
             if currentFile then
                 local backupFile = io.open(backupPath, "w")
@@ -158,27 +136,24 @@ local function checkForUpdates()
                 currentFile:close()
             end
             
-            -- Записываем новый скрипт
             local file = io.open(currentPath, "w")
             if file then
                 file:write(remoteScript)
                 file:close()
-                sampAddChatMessage("[TgNotify] ? Скрипт обновлен до версии " .. remoteVersion, -1)
-                
-                -- Автоматическая перезагрузка
+                sampAddChatMessage("[TgNotify] вњ… РЎРєСЂРёРїС‚ РѕР±РЅРѕРІР»РµРЅ РґРѕ РІРµСЂСЃРёРё " .. remoteVersion, -1)
                 reloadScript()
             else
-                sampAddChatMessage("[TgNotify] ? Ошибка при обновлении", -1)
+                sampAddChatMessage("[TgNotify] вќЊ РћС€РёР±РєР° РїСЂРё РѕР±РЅРѕРІР»РµРЅРёРё", -1)
             end
         else
-            sampAddChatMessage("[TgNotify] ? Версия актуальна: " .. CURRENT_VERSION, -1)
+            sampAddChatMessage("[TgNotify] вњ… Р’РµСЂСЃРёСЏ Р°РєС‚СѓР°Р»СЊРЅР°: " .. CURRENT_VERSION, -1)
         end
     else
-        sampAddChatMessage("[TgNotify] ? Не удалось проверить обновления", -1)
+        sampAddChatMessage("[TgNotify] вќЊ РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРІРµСЂРёС‚СЊ РѕР±РЅРѕРІР»РµРЅРёСЏ", -1)
     end
 end
 
--- Отправка уведомления в Telegram
+-- РћС‚РїСЂР°РІРєР° СѓРІРµРґРѕРјР»РµРЅРёСЏ РІ Telegram
 local function sendTelegramNotification(msg)
     if not msg or msg == "" or not enabled then return end
     
@@ -188,25 +163,24 @@ local function sendTelegramNotification(msg)
     
     local url = 'https://api.telegram.org/bot' .. TELEGRAM_TOKEN .. '/sendMessage?chat_id=' .. TELEGRAM_CHAT_ID .. '&text=' .. msg
     
-    -- Отправляем асинхронно
     effil.thread(function(request_url)
         local https = require('ssl.https')
         pcall(function() https.request(request_url) end)
     end)(url)
 end
 
--- Функция для приведения русского текста к нижнему регистру
+-- Р¤СѓРЅРєС†РёСЏ РґР»СЏ РїСЂРёРІРµРґРµРЅРёСЏ СЂСѓСЃСЃРєРѕРіРѕ С‚РµРєСЃС‚Р° Рє РЅРёР¶РЅРµРјСѓ СЂРµРіРёСЃС‚СЂСѓ
 local function rusLower(text)
     if not text then return "" end
     
     local lowerChars = {
-        ['А'] = 'а', ['Б'] = 'б', ['В'] = 'в', ['Г'] = 'г', ['Д'] = 'д',
-        ['Е'] = 'е', ['Ё'] = 'ё', ['Ж'] = 'ж', ['З'] = 'з', ['И'] = 'и',
-        ['Й'] = 'й', ['К'] = 'к', ['Л'] = 'л', ['М'] = 'м', ['Н'] = 'н',
-        ['О'] = 'о', ['П'] = 'п', ['Р'] = 'р', ['С'] = 'с', ['Т'] = 'т',
-        ['У'] = 'у', ['Ф'] = 'ф', ['Х'] = 'х', ['Ц'] = 'ц', ['Ч'] = 'ч',
-        ['Ш'] = 'ш', ['Щ'] = 'щ', ['Ъ'] = 'ъ', ['Ы'] = 'ы', ['Ь'] = 'ь',
-        ['Э'] = 'э', ['Ю'] = 'ю', ['Я'] = 'я'
+        ['Рђ'] = 'Р°', ['Р‘'] = 'Р±', ['Р’'] = 'РІ', ['Р“'] = 'Рі', ['Р”'] = 'Рґ',
+        ['Р•'] = 'Рµ', ['РЃ'] = 'С‘', ['Р–'] = 'Р¶', ['Р—'] = 'Р·', ['Р'] = 'Рё',
+        ['Р™'] = 'Р№', ['Рљ'] = 'Рє', ['Р›'] = 'Р»', ['Рњ'] = 'Рј', ['Рќ'] = 'РЅ',
+        ['Рћ'] = 'Рѕ', ['Рџ'] = 'Рї', ['Р '] = 'СЂ', ['РЎ'] = 'СЃ', ['Рў'] = 'С‚',
+        ['РЈ'] = 'Сѓ', ['Р¤'] = 'С„', ['РҐ'] = 'С…', ['Р¦'] = 'С†', ['Р§'] = 'С‡',
+        ['РЁ'] = 'С€', ['Р©'] = 'С‰', ['РЄ'] = 'СЉ', ['Р«'] = 'С‹', ['Р¬'] = 'СЊ',
+        ['Р­'] = 'СЌ', ['Р®'] = 'СЋ', ['РЇ'] = 'СЏ'
     }
     
     local result = ""
@@ -217,7 +191,7 @@ local function rusLower(text)
     return result
 end
 
--- Проверка наличия триггера в тексте
+-- РџСЂРѕРІРµСЂРєР° РЅР°Р»РёС‡РёСЏ С‚СЂРёРіРіРµСЂР° РІ С‚РµРєСЃС‚Рµ
 local function containsTrigger(text)
     if not enabled or not text or text == "" then return false end
     
@@ -244,14 +218,14 @@ local function containsTrigger(text)
     return false
 end
 
--- Обработчик серверных сообщений
+-- РћР±СЂР°Р±РѕС‚С‡РёРє СЃРµСЂРІРµСЂРЅС‹С… СЃРѕРѕР±С‰РµРЅРёР№
 function sampev.onServerMessage(color, text)
     if containsTrigger(text) then
         sendTelegramNotification(template:gsub("{message}", text))
     end
 end
 
--- Обработчик команд
+-- РћР±СЂР°Р±РѕС‚С‡РёРє РєРѕРјР°РЅРґ
 function sampev.onSendCommand(cmd)
     if cmd == "/tgnotify" then
         show_window = not show_window
@@ -259,7 +233,7 @@ function sampev.onSendCommand(cmd)
     end
 end
 
--- Обработчик ImGui
+-- РћР±СЂР°Р±РѕС‚С‡РёРє ImGui
 function imgui.OnDrawFrame()
     if not show_window then return end
     
@@ -270,7 +244,7 @@ function imgui.OnDrawFrame()
     
     if visible then
         if imgui.BeginTabBar("Tabs") then
-            -- Вкладка настроек Telegram
+            -- Р’РєР»Р°РґРєР° Telegram
             if imgui.BeginTabItem("Telegram") then
                 imgui.Dummy(0, 5)
                 
@@ -292,7 +266,7 @@ function imgui.OnDrawFrame()
                 
                 imgui.Dummy(0, 10)
                 
-                local changed2, new_enabled = imgui.Checkbox("Включить уведомления", imgui_enabled)
+                local changed2, new_enabled = imgui.Checkbox("Р’РєР»СЋС‡РёС‚СЊ СѓРІРµРґРѕРјР»РµРЅРёСЏ", imgui_enabled)
                 if changed2 then 
                     imgui_enabled = new_enabled
                     enabled = new_enabled
@@ -300,27 +274,25 @@ function imgui.OnDrawFrame()
                 end
                 
                 imgui.Dummy(0, 5)
-                if imgui.Button("Тест уведомления", 150, 25) then
-                    sendTelegramNotification("?? Тестовое уведомление от TgNotify")
-                    sampAddChatMessage("[TgNotify] Тестовое уведомление отправлено", -1)
+                if imgui.Button("РўРµСЃС‚ СѓРІРµРґРѕРјР»РµРЅРёСЏ", 150, 25) then
+                    sendTelegramNotification("рџ”” РўРµСЃС‚РѕРІРѕРµ СѓРІРµРґРѕРјР»РµРЅРёРµ РѕС‚ TgNotify")
+                    sampAddChatMessage("[TgNotify] РўРµСЃС‚РѕРІРѕРµ СѓРІРµРґРѕРјР»РµРЅРёРµ РѕС‚РїСЂР°РІР»РµРЅРѕ", -1)
                 end
                 
                 imgui.EndTabItem()
             end
             
-            -- Вкладка триггеров (с редактированием)
-            if imgui.BeginTabItem("Триггеры") then
+            -- Р’РєР»Р°РґРєР° С‚СЂРёРіРіРµСЂРѕРІ
+            if imgui.BeginTabItem("РўСЂРёРіРіРµСЂС‹") then
                 imgui.Dummy(0, 5)
-                imgui.Text("Ключевые слова для отслеживания:")
+                imgui.Text("РљР»СЋС‡РµРІС‹Рµ СЃР»РѕРІР° РґР»СЏ РѕС‚СЃР»РµР¶РёРІР°РЅРёСЏ:")
                 imgui.Separator()
                 imgui.Dummy(0, 5)
                 
-                -- Список триггеров с кнопками редактирования
                 for i, word in ipairs(imgui_triggers) do
                     imgui.PushID("trigger_" .. i)
                     
                     if imgui_edit_mode and imgui_edit_index == i then
-                        -- Режим редактирования
                         imgui.PushItemWidth(200)
                         local changed, new_value = imgui.InputText("##edit", imgui_edit_value, 100)
                         if changed then
@@ -329,7 +301,7 @@ function imgui.OnDrawFrame()
                         imgui.PopItemWidth()
                         
                         imgui.SameLine()
-                        if imgui.Button("?", 25, 25) then
+                        if imgui.Button("вњ…", 25, 25) then
                             if imgui_edit_value ~= "" then
                                 triggers[i] = imgui_edit_value
                                 imgui_triggers[i] = imgui_edit_value
@@ -340,23 +312,22 @@ function imgui.OnDrawFrame()
                         end
                         
                         imgui.SameLine()
-                        if imgui.Button("?", 25, 25) then
+                        if imgui.Button("вќЊ", 25, 25) then
                             imgui_edit_mode = false
                             imgui_edit_index = -1
                         end
                     else
-                        -- Обычный режим отображения
-                        imgui.Text("• " .. word)
+                        imgui.Text("вЂў " .. word)
                         imgui.SameLine(250)
                         
-                        if imgui.Button("??", 25, 25) then
+                        if imgui.Button("вњЏпёЏ", 25, 25) then
                             imgui_edit_mode = true
                             imgui_edit_index = i
                             imgui_edit_value = word
                         end
                         
                         imgui.SameLine()
-                        if imgui.Button("???", 25, 25) then
+                        if imgui.Button("рџ—‘пёЏ", 25, 25) then
                             table.remove(triggers, i)
                             table.remove(imgui_triggers, i)
                             needs_save = true
@@ -370,8 +341,7 @@ function imgui.OnDrawFrame()
                 imgui.Separator()
                 imgui.Dummy(0, 5)
                 
-                -- Добавление нового триггера
-                imgui.Text("Добавить новое слово:")
+                imgui.Text("Р”РѕР±Р°РІРёС‚СЊ РЅРѕРІРѕРµ СЃР»РѕРІРѕ:")
                 imgui.Dummy(0, 3)
                 
                 imgui.PushItemWidth(250)
@@ -382,7 +352,7 @@ function imgui.OnDrawFrame()
                 imgui.PopItemWidth()
                 
                 imgui.SameLine()
-                if imgui.Button("? Добавить", 100, 25) then
+                if imgui.Button("вћ• Р”РѕР±Р°РІРёС‚СЊ", 100, 25) then
                     if imgui_new_trigger ~= "" then
                         local new_word = imgui_new_trigger:gsub("^%s+", ""):gsub("%s+$", "")
                         if new_word ~= "" then
@@ -395,7 +365,7 @@ function imgui.OnDrawFrame()
                 end
                 
                 imgui.Dummy(0, 10)
-                imgui.Text("Шаблон сообщения:")
+                imgui.Text("РЁР°Р±Р»РѕРЅ СЃРѕРѕР±С‰РµРЅРёСЏ:")
                 imgui.Dummy(0, 3)
                 
                 imgui.PushItemWidth(350)
@@ -404,24 +374,24 @@ function imgui.OnDrawFrame()
                 imgui.PopItemWidth()
                 
                 imgui.Dummy(0, 5)
-                imgui.TextColored(0.5, 0.5, 0.5, 1, "Доступен плейсхолдер: {message}")
+                imgui.TextColored(0.5, 0.5, 0.5, 1, "Р”РѕСЃС‚СѓРїРµРЅ РїР»РµР№СЃС…РѕР»РґРµСЂ: {message}")
                 
                 imgui.EndTabItem()
             end
             
-            -- Вкладка информации
-            if imgui.BeginTabItem("Информация") then
+            -- Р’РєР»Р°РґРєР° РёРЅС„РѕСЂРјР°С†РёРё
+            if imgui.BeginTabItem("РРЅС„РѕСЂРјР°С†РёСЏ") then
                 imgui.Dummy(0, 10)
                 imgui.TextColored(0, 0.8, 1, 1, "TgNotify v" .. CURRENT_VERSION)
                 imgui.Dummy(0, 5)
-                imgui.Text("Команды:")
-                imgui.Text("  /tgnotify - открыть меню")
+                imgui.Text("РљРѕРјР°РЅРґС‹:")
+                imgui.Text("  /tgnotify - РѕС‚РєСЂС‹С‚СЊ РјРµРЅСЋ")
                 imgui.Dummy(0, 10)
-                imgui.Text("Статус: " .. (enabled and "? Включен" or "? Выключен"))
-                imgui.Text("Триггеров: " .. #triggers)
+                imgui.Text("РЎС‚Р°С‚СѓСЃ: " .. (enabled and "вњ… Р’РєР»СЋС‡РµРЅ" or "вќЊ Р’С‹РєР»СЋС‡РµРЅ"))
+                imgui.Text("РўСЂРёРіРіРµСЂРѕРІ: " .. #triggers)
                 
                 imgui.Dummy(0, 10)
-                if imgui.Button("Проверить обновления", 200, 25) then
+                if imgui.Button("РџСЂРѕРІРµСЂРёС‚СЊ РѕР±РЅРѕРІР»РµРЅРёСЏ", 200, 25) then
                     checkForUpdates()
                 end
                 
@@ -435,21 +405,19 @@ function imgui.OnDrawFrame()
         imgui.Separator()
         imgui.Dummy(0, 5)
         
-        -- Кнопки сохранения
         local save_x = (imgui.GetWindowWidth() - 210) / 2
         imgui.SetCursorPosX(save_x)
         
-        if imgui.Button("Сохранить конфиг", 100, 25) then
+        if imgui.Button("РЎРѕС…СЂР°РЅРёС‚СЊ РєРѕРЅС„РёРі", 100, 25) then
             saveConfig()
         end
         
         imgui.SameLine()
         
-        if imgui.Button("Закрыть", 100, 25) then
+        if imgui.Button("Р—Р°РєСЂС‹С‚СЊ", 100, 25) then
             show_window = false
         end
         
-        -- Автосохранение
         if needs_save then
             config_save_timer = os.clock() + 5
         end
@@ -464,18 +432,15 @@ function imgui.OnDrawFrame()
     show_window = open
 end
 
--- Инициализация
+-- РРЅРёС†РёР°Р»РёР·Р°С†РёСЏ
 function main()
     repeat wait(0) until isSampAvailable()
     
-    -- Загружаем конфиг
     loadConfig()
     updateImguiTriggers()
-    
-    -- Проверяем обновления при запуске
     checkForUpdates()
     
-    sampAddChatMessage("[TgNotify] /tgnotify - Открыть меню | v" .. CURRENT_VERSION, -1)
+    sampAddChatMessage("[TgNotify] /tgnotify - РћС‚РєСЂС‹С‚СЊ РјРµРЅСЋ | v" .. CURRENT_VERSION, -1)
     
     while true do
         wait(0)
