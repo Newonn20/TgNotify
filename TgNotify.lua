@@ -2,6 +2,7 @@ local sampev = require 'lib.samp.events'
 local effil = require("effil")
 local encoding = require("encoding")
 local imgui = require('imgui')
+local json = require('dkjson') -- Добавляем модуль JSON
 encoding.default = 'CP1251'
 local u8 = encoding.UTF8
 
@@ -32,7 +33,7 @@ local config_save_timer = 0
 -- Путь к конфиг файлу
 local config_path = getWorkingDirectory() .. "\\tgnotify_config.json"
 
--- Функция сохранения конфига (объявляем ПЕРЕД loadConfig)
+-- Функция сохранения конфига
 local function saveConfig()
     local config = {
         token = TELEGRAM_TOKEN,
@@ -44,7 +45,7 @@ local function saveConfig()
     
     local file = io.open(config_path, "w")
     if file then
-        file:write(json.encode(config))
+        file:write(json.encode(config, { indent = true })) -- Красивое форматирование
         file:close()
         sampAddChatMessage("[TgNotify] Конфиг сохранен", -1)
     end
@@ -65,8 +66,8 @@ local function loadConfig()
         local content = file:read("*all")
         file:close()
         
-        local success, config = pcall(json.decode, content)
-        if success and config then
+        local config, _, err = json.decode(content)
+        if config then
             TELEGRAM_TOKEN = config.token or ""
             TELEGRAM_CHAT_ID = config.chat_id or ""
             enabled = config.enabled ~= nil and config.enabled or true
@@ -79,10 +80,13 @@ local function loadConfig()
             updateImguiTriggers()
             
             sampAddChatMessage("[TgNotify] Конфиг загружен", -1)
+        else
+            sampAddChatMessage("[TgNotify] Ошибка загрузки конфига: " .. tostring(err), -1)
         end
     else
         -- Создаем конфиг по умолчанию если его нет
         saveConfig()
+        sampAddChatMessage("[TgNotify] Создан конфиг по умолчанию", -1)
     end
     config_loaded = true
 end
@@ -131,12 +135,12 @@ local function performUpdate()
     end
 end
 
--- Функция для проверки обновлений (упрощенная версия)
+-- Функция для проверки обновлений
 local function checkForUpdates()
     local url = GITHUB_RAW_URL .. "?nocache=" .. os.time()
     sampAddChatMessage("[TgNotify] Проверка обновлений...", -1)
     
-    -- Пытаемся загрузить без effil
+    -- Пытаемся загрузить
     local success, remoteScript = pcall(function()
         local https = require('ssl.https')
         return https.request(url)
@@ -169,8 +173,7 @@ end
 local function sendTelegramNotification(msg)
     if not msg or msg == "" or not enabled then return end
     if TELEGRAM_TOKEN == "" or TELEGRAM_CHAT_ID == "" then 
-        sampAddChatMessage("[TgNotify] ❌ Не указан токен или Chat ID", -1)
-        return 
+        return -- Просто игнорируем, без спама в чат
     end
     
     msg = msg:gsub('{%x%x%x%x%x%x}', '')
